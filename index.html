@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VWO Examen Chinees Oefentool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        chinese: ['Noto Sans SC', 'sans-serif'],
+                    },
+                    colors: {
+                        chinaRed: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            500: '#e11d48',
+                            600: '#e11d48',
+                            700: '#be123c',
+                            800: '#9f1239',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .chinese-passage {
+            font-family: 'Noto Sans SC', sans-serif;
+            letter-spacing: 0;
+            word-spacing: 0;
+            display: inline;
+            line-height: 2.8; /* Extra line height to accommodate bottom pinyin */
+        }
+
+        /* Interactive Compound/Word Item Styling with bottom pinyin */
+        .c-item {
+            display: inline-flex;
+            flex-direction: column; /* Pinyin flows below character */
+            align-items: center;
+            cursor: pointer;
+            padding: 0 1px;
+            margin: 0;
+            border-radius: 4px;
+            transition: background-color 0.15s ease, color 0.15s ease;
+            user-select: none;
+            vertical-align: top;
+            position: relative;
+        }
+        .c-item:hover {
+            background-color: #ffe4e6;
+            color: #be123c;
+        }
+        .c-item:active {
+            transform: scale(0.97);
+        }
+
+        /* Full-width Chinese Punctuation Element */
+        .c-punct {
+            display: inline;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            vertical-align: top;
+        }
+
+        /* Pinyin Annotation Bubble below Character */
+        .pinyin-rt {
+            font-size: 0.72rem;
+            line-height: 0.9rem;
+            color: #be123c;
+            font-weight: 700;
+            height: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            font-family: 'Inter', sans-serif;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Visibility Transitions */
+        .pinyin-rt.hidden-pinyin {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease-out, visibility 0.15s ease-out;
+        }
+        .pinyin-rt.revealed-pinyin {
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.1s ease-in;
+        }
+
+        /* 3-Second Progress Bar Indicator under Pinyin text */
+        .timer-bar-container {
+            width: 100%;
+            min-width: 12px;
+            height: 2px;
+            background-color: #fecdd3;
+            border-radius: 1px;
+            overflow: hidden;
+            margin-top: 1px;
+        }
+        .timer-bar {
+            height: 100%;
+            background-color: #e11d48;
+            width: 100%;
+            transform-origin: left;
+        }
+
+        /* Running animation for 3 seconds */
+        .timer-bar.running {
+            animation: timerDecrease 3s linear forwards;
+        }
+
+        @keyframes timerDecrease {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo / Title -->
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="app.showCategorySelect()">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center text-white font-bold text-xl shadow-md">
+                        漢
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-900 leading-tight">VWO Chinees</h1>
+                        <p class="text-xs text-slate-500">Examen Oefenplatform</p>
+                    </div>
+                </div>
+
+                <!-- Global Controls & Status -->
+                <div class="flex items-center space-x-3 sm:space-x-4">
+                    <!-- Global Pinyin Toggle Button -->
+                    <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        <button id="pinyinToggleBtn" onclick="app.togglePinyinMode()" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-white text-slate-800 shadow-sm">
+                            <i class="fa-solid fa-bolt text-amber-500"></i>
+                            <span id="pinyinStatusText">Klik = Direct 3s Pinyin (Onder)</span>
+                        </button>
+                    </div>
+
+                    <!-- Reset Progress Button -->
+                    <button onclick="app.confirmReset()" title="Voortgang wissen" class="p-2 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-xl transition">
+                        <i class="fa-solid fa-rotate-right text-base"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Category / Overview Screen -->
+        <div id="categoryScreen" class="space-y-6">
+            <!-- Banner -->
+            <div class="bg-gradient-to-r from-red-700 via-red-600 to-amber-600 rounded-2xl p-6 sm:p-8 text-white shadow-lg relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl font-chinese font-bold select-none pointer-events-none">
+                    学习
+                </div>
+                <div class="relative z-10 max-w-2xl">
+                    <span class="inline-block bg-white/25 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full font-medium mb-3">VWO Centraal Examen Voorbereiding</span>
+                    <h2 class="text-2xl sm:text-3xl font-bold mb-2">Oefen Centraal Examen Vragen Chinees</h2>
+                    <p class="text-red-100 text-sm sm:text-base mb-6 leading-relaxed">
+                        Authentieke Chinese teksten zonder spaties en met Chinese interpunctie（，。！？）. Klik op een karakter of woord om de <strong>Pinyin direct 3 seconden onder de tekst</strong> te tonen.
+                    </p>
+                    <div class="flex flex-wrap gap-4 text-xs font-medium">
+                        <div class="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center space-x-2">
+                            <i class="fa-solid fa-bolt text-amber-300"></i>
+                            <span>Directe 3s Pinyin onder tekst</span>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center space-x-2">
+                            <i class="fa-solid fa-font text-red-200"></i>
+                            <span>Authentieke Chinese typografie</span>
+                        </div>
+                        <div class="bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center space-x-2">
+                            <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                            <span>Inclusief Nederlandse uitleg</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Stats Summary -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-red-50 text-red-600 rounded-xl">
+                        <i class="fa-solid fa-graduation-cap text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">Totaal Vragen</div>
+                        <div id="statTotal" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                        <i class="fa-solid fa-circle-check text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">Goed Beantwoord</div>
+                        <div id="statCorrect" class="text-xl font-bold text-slate-800">0</div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">Nauwkeurigheid</div>
+                        <div id="statAccuracy" class="text-xl font-bold text-slate-800">0%</div>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                    <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                        <i class="fa-solid fa-fire text-xl"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium">Voltooid</div>
+                        <div id="statProgress" class="text-xl font-bold text-slate-800">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="text-lg font-bold text-slate-900 pt-2">Kies een Categorie</h3>
+
+            <!-- Category Cards Grid -->
+            <div id="categoryGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Dynamic insertion of category cards -->
+            </div>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quizScreen" class="hidden space-y-6">
+            <!-- Quiz Header / Top Control Bar -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                <button onclick="app.showCategorySelect()" class="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl transition">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Terug naar overzicht</span>
+                </button>
+
+                <!-- Session Progress Bar -->
+                <div class="w-full sm:w-1/2 flex items-center space-x-3">
+                    <span id="questionCounter" class="text-xs font-bold text-slate-500 whitespace-nowrap">Vraag 1/5</span>
+                    <div class="flex-1 bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                        <div id="progressBar" class="bg-red-600 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <!-- Category Badge Header -->
+                <div class="px-6 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <span id="quizCategoryBadge" class="text-xs font-bold text-red-600 uppercase tracking-wider">Leesvaardigheid</span>
+                    <span id="quizTypeBadge" class="text-xs px-2.5 py-1 bg-slate-200 text-slate-700 font-medium rounded-full">Meerkeuze</span>
+                </div>
+
+                <div class="p-6 sm:p-8 space-y-6">
+                    <!-- Text Context / Reading Passage (If applicable) -->
+                    <div id="readingPassageContainer" class="hidden bg-amber-50/60 border border-amber-200/80 rounded-xl p-5 space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-amber-900 font-semibold text-xs uppercase tracking-wide">
+                            <span class="flex items-center space-x-2">
+                                <i class="fa-solid fa-book-open"></i>
+                                <span>Examentekst / Fragment</span>
+                            </span>
+                            <button onclick="app.triggerAllPassagePinyin()" class="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 bg-amber-200/80 hover:bg-amber-300 text-amber-900 rounded-lg text-xs font-bold transition shadow-sm">
+                                <i class="fa-solid fa-bolt text-amber-600"></i>
+                                <span>Toon Pinyin onder hele tekst (3s)</span>
+                            </button>
+                        </div>
+                        <div id="readingPassageText" class="chinese-passage text-slate-900 text-xl font-chinese leading-loose custom-scrollbar overflow-y-auto max-h-64 py-4">
+                            <!-- Injected Chinese text with bottom pinyin -->
+                        </div>
+                    </div>
+
+                    <!-- Question Prompt -->
+                    <div class="space-y-3">
+                        <h3 id="questionPrompt" class="text-lg sm:text-xl font-bold text-slate-900 leading-snug">
+                            <!-- Question Text -->
+                        </h3>
+                        <div id="questionChineseContextWrapper" class="hidden space-y-2">
+                            <div class="flex justify-end">
+                                <button onclick="app.triggerContextPinyin()" class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-slate-200/80 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition">
+                                    <i class="fa-solid fa-bolt text-amber-500"></i>
+                                    <span>Toon Pinyin onder zin (3s)</span>
+                                </button>
+                            </div>
+                            <div id="questionChineseContext" class="chinese-passage text-xl leading-loose font-chinese text-slate-900 bg-slate-50 p-4 rounded-xl border border-slate-200 py-4">
+                                <!-- Injected context if question has Chinese characters -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input / Options Area -->
+                    <div id="optionsContainer" class="space-y-3">
+                        <!-- Options injected dynamically -->
+                    </div>
+
+                    <!-- Check / Action Button -->
+                    <div class="pt-4 border-t border-slate-100 flex justify-end">
+                        <button id="actionBtn" onclick="app.submitAnswer()" class="w-full sm:w-auto px-8 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md shadow-red-500/20 transition-all flex items-center justify-center space-x-2">
+                            <span>Controleer Antwoord</span>
+                            <i class="fa-solid fa-check"></i>
+                        </button>
+                    </div>
+
+                    <!-- Feedback Box -->
+                    <div id="feedbackBox" class="hidden rounded-xl p-5 border transition-all duration-300">
+                        <div class="flex items-start space-x-3">
+                            <div id="feedbackIcon" class="text-xl mt-0.5"></div>
+                            <div class="space-y-2 flex-1">
+                                <h4 id="feedbackTitle" class="font-bold text-base"></h4>
+                                <div id="feedbackExplanation" class="text-sm leading-relaxed space-y-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Summary Screen -->
+        <div id="resultsScreen" class="hidden max-w-2xl mx-auto space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center space-y-6">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 text-red-600 text-3xl shadow-inner">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900">Sessie Voltooid!</h2>
+                    <p class="text-slate-500 text-sm mt-1">Hier is je resultaat voor deze oefensessie.</p>
+                </div>
+
+                <!-- Score circle / metric -->
+                <div class="bg-slate-50 rounded-2xl p-6 border border-slate-100 flex justify-around items-center">
+                    <div>
+                        <div class="text-3xl font-extrabold text-slate-800" id="resultScore">0/0</div>
+                        <div class="text-xs text-slate-500 font-medium mt-1">Juiste Antwoorden</div>
+                    </div>
+                    <div class="h-10 w-px bg-slate-200"></div>
+                    <div>
+                        <div class="text-3xl font-extrabold text-red-600" id="resultPercentage">0%</div>
+                        <div class="text-xs text-slate-500 font-medium mt-1">Score</div>
+                    </div>
+                </div>
+
+                <div id="resultFeedbackText" class="text-sm text-slate-600 italic bg-amber-50 p-4 rounded-xl border border-amber-200">
+                    <!-- Dynamic encouraging text -->
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button onclick="app.retrySession()" class="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition">
+                        <i class="fa-solid fa-rotate-left mr-2"></i> Opnieuw Proberen
+                    </button>
+                    <button onclick="app.showCategorySelect()" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md shadow-red-500/20 transition">
+                        Andere Categorie <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-6 mt-auto text-center text-xs text-slate-500">
+        <div class="max-w-6xl mx-auto px-4">
+            <p>© VWO Examen Chinees Oefenplatform • Authentieke Chinese Interpunctie &amp; Pinyin onder tekst</p>
+        </div>
+    </footer>
+
+    <script>
+        /**
+         * Exam database with authentic Chinese punctuation (，。！？、：「」《》) and no word-spaces.
+         */
+        const examQuestions = [
+            // LEESVAARDIGHEID
+            {
+                id: "read_1",
+                categoryId: "reading",
+                categoryTitle: "Leesvaardigheid",
+                type: "mc",
+                passageData: [
+                    { c: "小明", p: "xiǎomíng" },
+                    { c: "每天", p: "měitiān" },
+                    { c: "坐", p: "zuò" },
+                    { c: "地铁", p: "dìtiě" },
+                    { c: "去", p: "qù" },
+                    { c: "上班", p: "shàngbān" },
+                    { c: "。" },
+                    { c: "虽然", p: "suīrán" },
+                    { c: "公共汽车", p: "gōnggòng qìchē" },
+                    { c: "更", p: "gèng" },
+                    { c: "便宜", p: "piányi" },
+                    { c: "，" },
+                    { c: "但是", p: "dànshì" },
+                    { c: "地铁", p: "dìtiě" },
+                    { c: "更", p: "gèng" },
+                    { c: "快", p: "kuài" },
+                    { c: "，" },
+                    { c: "也", p: "yě" },
+                    { c: "不会", p: "búhuì" },
+                    { c: "堵车", p: "dǔchē" },
+                    { c: "。" }
+                ],
+                prompt: "Waarom verkiest Xiao Ming de metro boven de bus om naar zijn werk te gaan?",
+                options: [
+                    "De metro is goedkoper dan de bus.",
+                    "De metro is sneller en heeft geen last van file.",
+                    "De bus stopt te ver van zijn werkplek.",
+                    "Er rijden 's ochtends geen bussen."
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> In de tekst staat: '虽然公共汽车更便宜，但是地铁更快，也不会堵车。' (Hoewel de bus goedkoper is, is de metro sneller en staat deze niet in de file — 堵车 dǔchē). Optie B is dus het juiste antwoord."
+            },
+            {
+                id: "read_2",
+                categoryId: "reading",
+                categoryTitle: "Leesvaardigheid",
+                type: "mc",
+                passageData: [
+                    { c: "中国人", p: "zhōngguórén" },
+                    { c: "过年", p: "guònián" },
+                    { c: "的", p: "de" },
+                    { c: "时候", p: "shíhou" },
+                    { c: "有", p: "yǒu" },
+                    { c: "吃", p: "chī" },
+                    { c: "鱼", p: "yú" },
+                    { c: "的", p: "de" },
+                    { c: "习惯", p: "xíguàn" },
+                    { c: "。" },
+                    { c: "因为", p: "yīnwèi" },
+                    { c: "「" },
+                    { c: "鱼", p: "yú" },
+                    { c: "」" },
+                    { c: "和", p: "hé" },
+                    { c: "「" },
+                    { c: "余", p: "yú" },
+                    { c: "」" },
+                    { c: "发音", p: "fāyīn" },
+                    { c: "相同", p: "xiāngtóng" },
+                    { c: "，" },
+                    { c: "意思", p: "yìsi" },
+                    { c: "是", p: "shì" },
+                    { c: "「" },
+                    { c: "年年有余", p: "niánnián yǒu yú" },
+                    { c: "」" },
+                    { c: "，" },
+                    { c: "希望", p: "xīwàng" },
+                    { c: "新的一年", p: "xīn de yì nián" },
+                    { c: "生活", p: "shēnghuó" },
+                    { c: "富裕", p: "fùyù" },
+                    { c: "。" }
+                ],
+                prompt: "Wat is de voornaamste reden dat Chinezen vis (鱼) eten tijdens het Chinees Nieuwjaar?",
+                options: [
+                    "Vis is het duurste ingrediënt voor het feestmaal.",
+                    "Het woord voor vis klinkt hetzelfde als het woord voor 'overschot/overvloed'.",
+                    "Het is een traditionele manier om viskwekers te ondersteunen.",
+                    "Vis symboliseert gezondheid en een lang leven."
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> In de tekst wordt uitgelegd dat '鱼' (yú - vis) en '余' (yú - overschot) hetzelfde klinken. De uitdrukking 年年有余 (nián nián yǒu yú) betekent 'elk jaar overvloed hebben'."
+            },
+            {
+                id: "read_3",
+                categoryId: "reading",
+                categoryTitle: "Leesvaardigheid",
+                type: "mc",
+                passageData: [
+                    { c: "自从", p: "zìcóng" },
+                    { c: "使用", p: "shǐyòng" },
+                    { c: "智能手机", p: "zhìnéng shǒujī" },
+                    { c: "以后", p: "yǐhòu" },
+                    { c: "，" },
+                    { c: "老张", p: "lǎozhāng" },
+                    { c: "极少", p: "jíshǎo" },
+                    { c: "买", p: "mǎi" },
+                    { c: "报纸", p: "bàozhǐ" },
+                    { c: "了", p: "le" },
+                    { c: "。" },
+                    { c: "他", p: "tā" },
+                    { c: "说", p: "shuō" },
+                    { c: "：" },
+                    { c: "「" },
+                    { c: "在", p: "zài" },
+                    { c: "手机上", p: "shǒujī shàng" },
+                    { c: "看", p: "kàn" },
+                    { c: "新闻", p: "xīnwén" },
+                    { c: "不仅", p: "bùjǐn" },
+                    { c: "更快", p: "gèng kuài" },
+                    { c: "，" },
+                    { c: "而且", p: "érqiě" },
+                    { c: "省钱", p: "shěngqián" },
+                    { c: "。" },
+                    { c: "」" }
+                ],
+                prompt: "Wat is de houding van Lao Zhang ten opzichte van het lezen van nieuws op de smartphone?",
+                options: [
+                    "Hij vindt het ingewikkeld maar noodzakelijk.",
+                    "Hij mist het lezen van traditionele kranten.",
+                    "Hij vindt het sneller en voordeliger dan kranten kopen.",
+                    "Hij leest nu minder nieuws dan voorheen."
+                ],
+                correctAnswer: 2,
+                explanation: "<strong>Uitleg:</strong> Lao Zhang geeft aan: 「在手机上看新闻不仅更快，而且省钱。」 (Nieuws lezen op je telefoon is niet alleen sneller, maar bespaart ook geld). Optie C geeft dit exact weer."
+            },
+
+            // GRAMMATICA
+            {
+                id: "gram_1",
+                categoryId: "grammar",
+                categoryTitle: "Grammatica & Zinsstructuur",
+                type: "mc",
+                chineseContextData: [
+                    { c: "他", p: "tā" },
+                    { c: "把", p: "bǎ" },
+                    { c: "那本书", p: "nà běn shū" },
+                    { c: "______", p: "" },
+                    { c: "了", p: "le" },
+                    { c: "。" }
+                ],
+                prompt: "Vul de blanco in om een correcte 把 (bǎ)-constructie te maken:",
+                options: [
+                    "看 (kàn)",
+                    "看在 (kàn zài)",
+                    "看完 (kàn wán)",
+                    "看想 (kàn xiǎng)"
+                ],
+                correctAnswer: 2,
+                explanation: "<strong>Uitleg:</strong> Een 把-zin vereist een 'complexe' werkwoordsvorm die een resultaat of effect op het object aangeeft. '看完' (kàn wán = uitlezen) geeft een voltooid resultaat aan: 'Hij heeft dat boek uitgelezen'."
+            },
+            {
+                id: "gram_2",
+                categoryId: "grammar",
+                categoryTitle: "Grammatica & Zinsstructuur",
+                type: "mc",
+                chineseContextData: [
+                    { c: "虽然", p: "suīrán" },
+                    { c: "今天", p: "jīntiān" },
+                    { c: "天气", p: "tiānqì" },
+                    { c: "不好", p: "bù hǎo" },
+                    { c: "，" },
+                    { c: "______", p: "" },
+                    { c: "我们", p: "wǒmen" },
+                    { c: "还是", p: "háishì" },
+                    { c: "决定", p: "juédìng" },
+                    { c: "去", p: "qù" },
+                    { c: "爬山", p: "páshān" },
+                    { c: "。" }
+                ],
+                prompt: "Welk voegwoord past op de opengelaten plek voor de correcte structuur 'Hoewel..., toch...'?",
+                options: [
+                    "因为 (yīnwèi)",
+                    "但是 (dànshì)",
+                    "所以 (suǒyǐ)",
+                    "如果 (rúguǒ)"
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> De vaste grammaticale combinatie voor 'hoewel... maar/toch...' in het Chinees is <strong>虽然 (suīrán) ... 但是 (dànshì) ...</strong>."
+            },
+            {
+                id: "gram_3",
+                categoryId: "grammar",
+                categoryTitle: "Grammatica & Zinsstructuur",
+                type: "mc",
+                chineseContextData: [
+                    { c: "这件", p: "zhè jiàn" },
+                    { c: "衬衫", p: "chènshān" },
+                    { c: "比", p: "bǐ" },
+                    { c: "那件", p: "nà jiàn" },
+                    { c: "______", p: "" },
+                    { c: "十块钱", p: "shí kuài qián" },
+                    { c: "。" }
+                ],
+                prompt: "Welke volgorde is juist voor een vergelijkende zin met 比 (bǐ) inclusief prijsverschil?",
+                options: [
+                    "贵 (guì)",
+                    "十块钱贵 (shí kuài qián guì)",
+                    "贵十块钱 (guì shí kuài qián)",
+                    "比十块钱贵 (bǐ shí kuài qián guì)"
+                ],
+                correctAnswer: 0,
+                explanation: "<strong>Uitleg:</strong> Bij een vergelijking met 比 komt het bijvoeglijk naamwoord vóór het specifieke verschil: <em>A + 比 + B + Adjectief + Verschil</em>. Dus: 这件衬衫比那件 <strong>贵</strong> 十块钱。"
+            },
+
+            // VOCABULAIRE
+            {
+                id: "vocab_1",
+                categoryId: "vocab",
+                categoryTitle: "Vocabulaire & Idioom",
+                type: "mc",
+                chineseContextData: [
+                    { c: "马马虎虎", p: "mǎmǎhūhū" }
+                ],
+                prompt: "Wat betekent het bekende idioom (chengyu) 「马马虎虎」?",
+                options: [
+                    "Agressief en gevaarlijk",
+                    "Zo-zo / Gaat wel / Slordig",
+                    "Zeer snel en efficiënt",
+                    "Prachtig en kleurrijk"
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> 马马虎虎 (mǎmǎhūhū) betekent letterlijk 'paard-paard-tijger-tijger', maar wordt gebruikt om 'redelijk/gaat wel' of 'oppervlakkig/slordig' aan te duiden."
+            },
+            {
+                id: "vocab_2",
+                categoryId: "vocab",
+                categoryTitle: "Vocabulaire & Idioom",
+                type: "fill",
+                chineseContextData: [
+                    { c: "我想", p: "wǒ xiǎng" },
+                    { c: "买", p: "mǎi" },
+                    { c: "一张", p: "yì zhāng" },
+                    { c: "去", p: "qù" },
+                    { c: "北京的", p: "běijīng de" },
+                    { c: "飞", p: "fēi" },
+                    { c: "______", p: "" },
+                    { c: "。（fēijī＝vliegtuig）", p: "" }
+                ],
+                prompt: "Vul het ontbrekende karakter in pinyin in voor 'vliegtuig' (飞...):",
+                correctText: "ji",
+                explanation: "<strong>Uitleg:</strong> Het woord voor vliegtuig is 飞机 (fēijī). Het ontbrekende deel in pinyin is 'ji'."
+            },
+            {
+                id: "vocab_3",
+                categoryId: "vocab",
+                categoryTitle: "Vocabulaire & Idioom",
+                type: "mc",
+                chineseContextData: [
+                    { c: "越来越", p: "yuè lái yuè" }
+                ],
+                prompt: "Hoe wordt de structuur 「越来越＋adjectief」 gebruikt?",
+                options: [
+                    "Om een vergelijking tussen twee personen te maken.",
+                    "Om aan te geven dat iets 'hoe langer hoe...' of 'steeds meer...' wordt.",
+                    "Om te zeggen dat iets nooit verandert.",
+                    "Om een verleden tijd aan te duiden."
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> 越来越 (yuè lái yuè) drukt een progressieve verandering uit, bijvoorbeeld: 天气越来越热 (het weer wordt steeds warmer)."
+            },
+
+            // CULTUUR
+            {
+                id: "cult_1",
+                categoryId: "culture",
+                categoryTitle: "Cultuur & Context",
+                type: "mc",
+                prompt: "In de Chinese cultuur is kleurensymbolisme erg belangrijk. Welke kleur wordt traditiegetrouw geassocieerd met geluk, vreugde en feestelijkheden?",
+                options: [
+                    "Geel (黄色 huángsè)",
+                    "Rood (红色 hóngsè)",
+                    "Wit (白色 báisè)",
+                    "Groen (绿色 lǜsè)"
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> Rood (红色 hóngsè) is de traditionele feestkleur in China die geluk, voorspoed en succes symboliseert."
+            },
+            {
+                id: "cult_2",
+                categoryId: "culture",
+                categoryTitle: "Cultuur & Context",
+                type: "mc",
+                prompt: "Wat is de betekenis van het concept 「面子」 (miànzi - gezicht) in de Chinese omgangsvormen?",
+                options: [
+                    "Uiterlijke verzorging en mode.",
+                    "Sociale reputatie, eer en het vermijden van afgang.",
+                    "Het tonen van emoties in het openbaar.",
+                    "Gastvrijheid door veel eten aan te bieden."
+                ],
+                correctAnswer: 1,
+                explanation: "<strong>Uitleg:</strong> 'Gezicht' (面子 miànzi) staat in China voor reputatie, waardigheid en respect binnen een sociale groep."
+            }
+        ];
+
+        // Categories
+        const categories = [
+            {
+                id: "reading",
+                title: "Leesvaardigheid",
+                desc: "Oefen met authentieke leesteksten met Pinyin direct onder de tekst op aanvraag.",
+                icon: "fa-book-open",
+                color: "from-red-500 to-rose-600"
+            },
+            {
+                id: "grammar",
+                title: "Grammatica & Zinsstructuur",
+                desc: "Test je kennis van grammaticale constructies zoals 把, 被, 比 en voegwoorden.",
+                icon: "fa-diagram-project",
+                color: "from-amber-500 to-orange-600"
+            },
+            {
+                id: "vocab",
+                title: "Vocabulaire & Idioom",
+                desc: "Breid je woordenschat uit en leer bekende Chengyu (idiomen) te herkennen.",
+                icon: "fa-spell-check",
+                color: "from-emerald-500 to-teal-600"
+            },
+            {
+                id: "culture",
+                title: "Cultuur & Context",
+                desc: "Vragen over culturele context, omgangsvormen en achtergrondkennis.",
+                icon: "fa-landmark",
+                color: "from-blue-500 to-indigo-600"
+            }
+        ];
+
+        class ChineseExamApp {
+            constructor() {
+                this.alwaysShowPinyin = false;
+                this.currentCategory = null;
+                this.currentQuestionIndex = 0;
+                this.sessionQuestions = [];
+                this.activeTimers = {};
+                this.userProgress = this.loadProgress();
+
+                this.initUI();
+            }
+
+            initUI() {
+                this.renderCategories();
+                this.updateStats();
+            }
+
+            loadProgress() {
+                const saved = localStorage.getItem('vwo_chinese_progress_v5');
+                return saved ? JSON.parse(saved) : { answered: {} };
+            }
+
+            saveProgress() {
+                localStorage.setItem('vwo_chinese_progress_v5', JSON.stringify(this.userProgress));
+                this.updateStats();
+            }
+
+            confirmReset() {
+                if (confirm("Weet je zeker dat je alle opgeslagen voortgang en scores wilt wissen?")) {
+                    this.userProgress = { answered: {} };
+                    this.saveProgress();
+                    alert("Voortgang is gereset.");
+                    this.showCategorySelect();
+                }
+            }
+
+            togglePinyinMode() {
+                this.alwaysShowPinyin = !this.alwaysShowPinyin;
+                const statusText = document.getElementById('pinyinStatusText');
+                const btn = document.getElementById('pinyinToggleBtn');
+
+                if (this.alwaysShowPinyin) {
+                    statusText.innerText = "Pinyin (Onder): ALTIJD AAN";
+                    btn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-red-600 text-white shadow-sm";
+                } else {
+                    statusText.innerText = "Klik = Direct 3s Pinyin (Onder)";
+                    btn.className = "flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 bg-white text-slate-800 shadow-sm";
+                }
+
+                if (this.sessionQuestions.length > 0 && !document.getElementById('quizScreen').classList.contains('hidden')) {
+                    this.renderQuestion();
+                }
+            }
+
+            updateStats() {
+                const totalQuestions = examQuestions.length;
+                const answeredKeys = Object.keys(this.userProgress.answered);
+                const answeredCount = answeredKeys.length;
+
+                let correctCount = 0;
+                answeredKeys.forEach(id => {
+                    if (this.userProgress.answered[id].isCorrect) {
+                        correctCount++;
+                    }
+                });
+
+                const accuracy = answeredCount > 0 ? Math.round((correctCount / answeredCount) * 100) : 0;
+                const progressPct = Math.round((answeredCount / totalQuestions) * 100);
+
+                document.getElementById('statTotal').innerText = totalQuestions;
+                document.getElementById('statCorrect').innerText = correctCount;
+                document.getElementById('statAccuracy').innerText = accuracy + '%';
+                document.getElementById('statProgress').innerText = progressPct + '%';
+            }
+
+            renderCategories() {
+                const container = document.getElementById('categoryGrid');
+                container.innerHTML = '';
+
+                categories.forEach(cat => {
+                    const catQuestions = examQuestions.filter(q => q.categoryId === cat.id);
+                    const totalInCat = catQuestions.length;
+                    const answeredInCat = catQuestions.filter(q => this.userProgress.answered[q.id]).length;
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-6 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between group";
+                    card.onclick = () => this.startQuiz(cat.id);
+
+                    card.innerHTML = `
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr ${cat.color} text-white flex items-center justify-center text-xl shadow-sm">
+                                    <i class="fa-solid ${cat.icon}"></i>
+                                </div>
+                                <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full">
+                                    ${answeredInCat}/${totalInCat} voltooid
+                                </span>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-bold text-slate-900 group-hover:text-red-600 transition">${cat.title}</h4>
+                                <p class="text-slate-500 text-xs sm:text-sm mt-1 leading-relaxed">${cat.desc}</p>
+                            </div>
+                        </div>
+                        <div class="pt-6 flex items-center text-xs font-bold text-red-600 space-x-1">
+                            <span>Start Oefening</span>
+                            <i class="fa-solid fa-chevron-right text-xs group-hover:translate-x-1 transition-transform"></i>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            startQuiz(categoryId) {
+                this.currentCategory = categoryId;
+                this.sessionQuestions = examQuestions.filter(q => q.categoryId === categoryId);
+                this.currentQuestionIndex = 0;
+
+                if (this.sessionQuestions.length === 0) {
+                    alert("Geen vragen beschikbaar in deze categorie.");
+                    return;
+                }
+
+                document.getElementById('categoryScreen').classList.add('hidden');
+                document.getElementById('resultsScreen').classList.add('hidden');
+                document.getElementById('quizScreen').classList.remove('hidden');
+
+                this.renderQuestion();
+            }
+
+            /**
+             * Converts tokens into seamless Chinese layout without artificial spaces, positioning pinyin BELOW.
+             */
+            createInteractiveChineseHTML(tokens, containerPrefix = "tok") {
+                if (!tokens || !Array.isArray(tokens)) return '';
+
+                const isChinesePunctuation = (str) => /^[，。！？、、：；「」《》“”''（）]$/.test(str);
+
+                return tokens.map((token, index) => {
+                    if (!token.p || isChinesePunctuation(token.c)) {
+                        return `<span class="c-punct text-slate-800 font-chinese">${token.c}</span>`;
+                    }
+
+                    const elemId = `${containerPrefix}_${index}_${Math.random().toString(36).substr(2, 4)}`;
+                    const pinyinClass = this.alwaysShowPinyin ? 'revealed-pinyin' : 'hidden-pinyin';
+
+                    return `
+                        <span id="${elemId}" class="c-item group" onclick="app.triggerSinglePinyin('${elemId}', '${token.p}')">
+                            <span class="text-slate-900 font-chinese font-normal">${token.c}</span>
+                            <span class="pinyin-rt ${pinyinClass}" id="${elemId}_pinyin">
+                                <span class="timer-bar-container">
+                                    <span class="timer-bar" id="${elemId}_bar"></span>
+                                </span>
+                                <span class="pinyin-text">${token.p}</span>
+                            </span>
+                        </span>
+                    `;
+                }).join('');
+            }
+
+            /**
+             * Triggers Pinyin IMMEDIATELY for 3 seconds below the item. Resets timer if clicked again.
+             */
+            triggerSinglePinyin(elemId, pinyinText) {
+                if (this.alwaysShowPinyin) return;
+
+                const pinyinEl = document.getElementById(`${elemId}_pinyin`);
+                const barEl = document.getElementById(`${elemId}_bar`);
+                if (!pinyinEl || !barEl) return;
+
+                if (this.activeTimers[elemId]) {
+                    clearTimeout(this.activeTimers[elemId]);
+                    delete this.activeTimers[elemId];
+                }
+
+                barEl.classList.remove('running');
+                void barEl.offsetWidth; // Force CSS reflow
+
+                pinyinEl.classList.remove('hidden-pinyin');
+                pinyinEl.classList.add('revealed-pinyin');
+                barEl.classList.add('running');
+
+                const timerId = setTimeout(() => {
+                    pinyinEl.classList.remove('revealed-pinyin');
+                    pinyinEl.classList.add('hidden-pinyin');
+                    barEl.classList.remove('running');
+                    delete this.activeTimers[elemId];
+                }, 3000);
+
+                this.activeTimers[elemId] = timerId;
+            }
+
+            triggerAllPassagePinyin() {
+                const passageContainer = document.getElementById('readingPassageText');
+                if (!passageContainer) return;
+                const items = passageContainer.querySelectorAll('.c-item');
+                items.forEach(item => {
+                    const id = item.id;
+                    const pinyinTextEl = item.querySelector('.pinyin-text');
+                    if (id && pinyinTextEl) {
+                        this.triggerSinglePinyin(id, pinyinTextEl.innerText);
+                    }
+                });
+            }
+
+            triggerContextPinyin() {
+                const contextContainer = document.getElementById('questionChineseContext');
+                if (!contextContainer) return;
+                const items = contextContainer.querySelectorAll('.c-item');
+                items.forEach(item => {
+                    const id = item.id;
+                    const pinyinTextEl = item.querySelector('.pinyin-text');
+                    if (id && pinyinTextEl) {
+                        this.triggerSinglePinyin(id, pinyinTextEl.innerText);
+                    }
+                });
+            }
+
+            renderQuestion() {
+                Object.keys(this.activeTimers).forEach(id => clearTimeout(this.activeTimers[id]));
+                this.activeTimers = {};
+
+                const question = this.sessionQuestions[this.currentQuestionIndex];
+                const total = this.sessionQuestions.length;
+
+                document.getElementById('questionCounter').innerText = `Vraag ${this.currentQuestionIndex + 1}/${total}`;
+                document.getElementById('progressBar').style.width = `${((this.currentQuestionIndex + 1) / total) * 100}%`;
+
+                document.getElementById('quizCategoryBadge').innerText = question.categoryTitle;
+                document.getElementById('quizTypeBadge').innerText = question.type === 'mc' ? 'Meerkeuze' : 'Invulvraag';
+
+                const passageContainer = document.getElementById('readingPassageContainer');
+                if (question.passageData) {
+                    passageContainer.classList.remove('hidden');
+                    document.getElementById('readingPassageText').innerHTML = this.createInteractiveChineseHTML(question.passageData, "passage");
+                } else {
+                    passageContainer.classList.add('hidden');
+                }
+
+                document.getElementById('questionPrompt').innerText = question.prompt;
+
+                const chineseContextWrapper = document.getElementById('questionChineseContextWrapper');
+                const chineseContextEl = document.getElementById('questionChineseContext');
+                if (question.chineseContextData) {
+                    chineseContextWrapper.classList.remove('hidden');
+                    chineseContextEl.innerHTML = this.createInteractiveChineseHTML(question.chineseContextData, "context");
+                } else {
+                    chineseContextWrapper.classList.add('hidden');
+                }
+
+                const feedbackBox = document.getElementById('feedbackBox');
+                feedbackBox.className = "hidden rounded-xl p-5 border transition-all duration-300";
+
+                const actionBtn = document.getElementById('actionBtn');
+                actionBtn.onclick = () => this.submitAnswer();
+                actionBtn.innerHTML = `<span>Controleer Antwoord</span><i class="fa-solid fa-check"></i>`;
+
+                const optionsContainer = document.getElementById('optionsContainer');
+                optionsContainer.innerHTML = '';
+
+                if (question.type === 'mc') {
+                    question.options.forEach((opt, idx) => {
+                        const optBtn = document.createElement('button');
+                        optBtn.className = `option-btn w-full text-left p-4 rounded-xl border border-slate-200 hover:border-red-300 hover:bg-slate-50 transition flex items-center justify-between font-medium text-slate-800 text-sm sm:text-base`;
+                        optBtn.onclick = () => this.selectOption(idx);
+                        optBtn.setAttribute('data-idx', idx);
+
+                        optBtn.innerHTML = `
+                            <div class="flex items-center space-x-3">
+                                <span class="w-7 h-7 rounded-lg bg-slate-100 border border-slate-300 text-slate-600 flex items-center justify-center font-bold text-xs uppercase">${String.fromCharCode(65 + idx)}</span>
+                                <span>${opt}</span>
+                            </div>
+                            <div class="status-icon"></div>
+                        `;
+                        optionsContainer.appendChild(optBtn);
+                    });
+                } else if (question.type === 'fill') {
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = "space-y-2";
+                    inputGroup.innerHTML = `
+                        <label class="block text-xs font-semibold text-slate-500 uppercase">Jouw Antwoord (Pinyin / Karakter):</label>
+                        <input type="text" id="fillInput" class="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-red-500 focus:border-red-500 text-slate-800 text-base font-medium outline-none transition" placeholder="Typ hier je antwoord...">
+                    `;
+                    optionsContainer.appendChild(inputGroup);
+                }
+
+                this.selectedOptionIndex = null;
+            }
+
+            selectOption(index) {
+                this.selectedOptionIndex = index;
+                const buttons = document.querySelectorAll('.option-btn');
+                buttons.forEach((btn, idx) => {
+                    if (idx === index) {
+                        btn.className = "option-btn w-full text-left p-4 rounded-xl border-2 border-red-500 bg-red-50/50 text-slate-900 font-semibold transition flex items-center justify-between text-sm sm:text-base shadow-sm";
+                    } else {
+                        btn.className = "option-btn w-full text-left p-4 rounded-xl border border-slate-200 hover:border-red-300 hover:bg-slate-50 transition flex items-center justify-between font-medium text-slate-800 text-sm sm:text-base";
+                    }
+                });
+            }
+
+            submitAnswer() {
+                const question = this.sessionQuestions[this.currentQuestionIndex];
+                let isCorrect = false;
+                let userVal = null;
+
+                if (question.type === 'mc') {
+                    if (this.selectedOptionIndex === null) {
+                        alert("Selecteer eerst een antwoord.");
+                        return;
+                    }
+                    userVal = this.selectedOptionIndex;
+                    isCorrect = (userVal === question.correctAnswer);
+                } else if (question.type === 'fill') {
+                    const inputEl = document.getElementById('fillInput');
+                    if (!inputEl || !inputEl.value.trim()) {
+                        alert("Vul een antwoord in.");
+                        return;
+                    }
+                    userVal = inputEl.value.trim().toLowerCase();
+                    isCorrect = (userVal === question.correctText.toLowerCase());
+                }
+
+                this.userProgress.answered[question.id] = {
+                    isCorrect: isCorrect,
+                    timestamp: new Date().toISOString()
+                };
+                this.saveProgress();
+
+                this.showFeedback(isCorrect, question);
+
+                const actionBtn = document.getElementById('actionBtn');
+                actionBtn.onclick = () => this.nextQuestion();
+                actionBtn.innerHTML = `<span>Volgende Vraag</span><i class="fa-solid fa-arrow-right"></i>`;
+            }
+
+            showFeedback(isCorrect, question) {
+                const feedbackBox = document.getElementById('feedbackBox');
+                const feedbackIcon = document.getElementById('feedbackIcon');
+                const feedbackTitle = document.getElementById('feedbackTitle');
+                const feedbackExplanation = document.getElementById('feedbackExplanation');
+
+                feedbackBox.classList.remove('hidden');
+
+                if (isCorrect) {
+                    feedbackBox.className = "rounded-xl p-5 border bg-emerald-50 border-emerald-200 text-emerald-900";
+                    feedbackIcon.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600"></i>`;
+                    feedbackTitle.innerText = "Uitstekend! Dat is juist.";
+                } else {
+                    feedbackBox.className = "rounded-xl p-5 border bg-rose-50 border-rose-200 text-rose-900";
+                    feedbackIcon.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600"></i>`;
+                    feedbackTitle.innerText = "Helaas, dat is niet juist.";
+                }
+
+                feedbackExplanation.innerHTML = question.explanation;
+
+                if (question.type === 'mc') {
+                    const buttons = document.querySelectorAll('.option-btn');
+                    buttons.forEach((btn, idx) => {
+                        btn.disabled = true;
+                        if (idx === question.correctAnswer) {
+                            btn.className = "option-btn w-full text-left p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold transition flex items-center justify-between text-sm sm:text-base";
+                        } else if (idx === this.selectedOptionIndex && !isCorrect) {
+                            btn.className = "option-btn w-full text-left p-4 rounded-xl border-2 border-rose-500 bg-rose-50 text-rose-900 font-semibold transition flex items-center justify-between text-sm sm:text-base";
+                        }
+                    });
+                }
+            }
+
+            nextQuestion() {
+                if (this.currentQuestionIndex < this.sessionQuestions.length - 1) {
+                    this.currentQuestionIndex++;
+                    this.renderQuestion();
+                } else {
+                    this.showResults();
+                }
+            }
+
+            showResults() {
+                document.getElementById('quizScreen').classList.add('hidden');
+                document.getElementById('resultsScreen').classList.remove('hidden');
+
+                let sessionCorrect = 0;
+                this.sessionQuestions.forEach(q => {
+                    if (this.userProgress.answered[q.id] && this.userProgress.answered[q.id].isCorrect) {
+                        sessionCorrect++;
+                    }
+                });
+
+                const total = this.sessionQuestions.length;
+                const percentage = Math.round((sessionCorrect / total) * 100);
+
+                document.getElementById('resultScore').innerText = `${sessionCorrect}/${total}`;
+                document.getElementById('resultPercentage').innerText = `${percentage}%`;
+
+                const feedbackTextEl = document.getElementById('resultFeedbackText');
+                if (percentage === 100) {
+                    feedbackTextEl.innerText = "Perfect gedaan! Je beheerst de examenonderdelen van deze categorie uitstekend.";
+                } else if (percentage >= 70) {
+                    feedbackTextEl.innerText = "Goed resultaat! Je bent op de goede weg voor het VWO examen.";
+                } else {
+                    feedbackTextEl.innerText = "Blijf oefenen! Bekijk de antwoorden met de Nederlandse uitleg en probeer deze categorie nog een keer.";
+                }
+            }
+
+            retrySession() {
+                if (this.currentCategory) {
+                    this.startQuiz(this.currentCategory);
+                }
+            }
+
+            showCategorySelect() {
+                document.getElementById('quizScreen').classList.add('hidden');
+                document.getElementById('resultsScreen').classList.add('hidden');
+                document.getElementById('categoryScreen').classList.remove('hidden');
+                this.renderCategories();
+                this.updateStats();
+            }
+        }
+
+        let app;
+        window.onload = function() {
+            app = new ChineseExamApp();
+        };
+    </script>
+</body>
+</html>
